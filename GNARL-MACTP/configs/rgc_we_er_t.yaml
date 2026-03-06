@@ -1,0 +1,71 @@
+algorithm: rgc
+seed: 1
+env_kwargs:
+  objective_method: targeted
+expert_policy_kwargs:
+  method: greedy
+  objective: targeted
+train_data:
+  graph_generator: er
+  graph_generator_kwargs:
+    p: 0.2
+    tau: 0.05
+  node_samples:
+    20: 10000
+  num_envs: 4
+  seed: 42
+  graph_dir: graph_data
+val_data:
+  graph_generator: er
+  graph_generator_kwargs:
+    p: 0.2
+    tau: 0.05
+  node_samples:
+    20: 100
+  deterministic: true
+  num_envs: 4
+  seed: 80085
+  graph_dir: graph_data
+test_data:
+  graph_generator: er
+  graph_generator_kwargs:
+    p: 0.2
+    tau: 0.05
+  node_samples:
+    20: 100
+    40: 100
+    60: 100
+    80: 100
+    100: 100
+  deterministic: true
+  num_envs: 4
+  seed: 42069
+  graph_dir: graph_data
+policy_kwargs:
+  embed_dim: 64
+  pooling_type: mean
+  network_kwargs:
+    network: MPNN
+    aggr: sum
+    num_layers: 2
+PPO:
+  n_steps: 1024
+  n_epochs: 10
+  gamma: 1
+  learning_rate: 0.0005
+  timesteps: 10000000
+  batch_size: 32
+  seed: 8
+  eval_freq: 1024
+BC:
+  min_episodes: 10000
+  n_epochs: 1
+  learning_rate: 0.05
+  batch_size: 8
+  vf_coef: 0.005
+  gamma: 1
+  seed: 17
+  eval_freq: 100
+weights_init:
+  gnn_init: sparse
+  encoder_init: ibarz2022

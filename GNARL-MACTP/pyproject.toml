@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools", "wheel", "pybind11"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gnarl"
+version = "0.1"
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "dm-clrs==2.0.3",
+	"flax",
+    "torch==2.6.0",
+    "torch_geometric==2.6.1",
+    "numpy==2.1.3",
+    "gymnasium",
+    "wandb",
+    "sb3_contrib",
+    "tqdm",
+	"tensorflow==2.19.0",
+	"tensorflow-metadata==1.17.0",
+	"tfds-nightly==4.9.8.dev202504060044",
+	"pulp",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gnarl*", "third_party*"]

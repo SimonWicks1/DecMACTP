@@ -1,0 +1,20 @@
+This project includes modified code from the following projects:
+
+1. DEAR (https://github.com/HekpoMaH/DEAR/)
+
+	License: See [third_party/DEAR/LICENSE](third_party/DEAR/LICENSE)
+
+	The following files were imported and modified:
+	- `models/gnns.py` -> `gnarl/network/gnns.py`: Removed support for recurrent features.
+
+	Copyright 2024 The DEAR Authors
+
+2. graph-construction-rl (https://github.com/VictorDarvariu/graph-construction-rl-lite/)
+
+	License: MIT.
+
+	The following files were imported and modified:
+	- `relnet/objective_functions/objective_functions.py` -> `third_party/relnet/objective_functions/objective_functions.py`: Adapted for compatibility with pybind11.
+	- `relnet/objective_functions/objective_functions_ext.cpp` -> `third_party/relnet/objective_functions/objective_functions_ext.cpp`: Adapted for compatibility with pybind11.
+
+	Copyright 2021 The graph-construction-rl Authors

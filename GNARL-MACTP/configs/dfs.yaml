@@ -1,0 +1,54 @@
+algorithm: dfs
+seed: 1
+train_data:
+  graph_generator: er
+  graph_generator_kwargs:
+    p_range: [0.1, 0.9]
+  node_samples:
+    4: 200
+    7: 200
+    11: 200
+    13: 200
+    16: 200
+  num_envs: 4
+  seed: 30
+  graph_dir: graph_data
+val_data:
+  graph_generator: er
+  graph_generator_kwargs:
+    p: 0.5
+  node_samples:
+    16: 100
+  deterministic: true
+  num_envs: 4
+  seed: 80085
+  graph_dir: graph_data
+test_data:
+  graph_generator: er
+  graph_generator_kwargs:
+    p: 0.5
+  node_samples:
+    64: 100
+  deterministic: true
+  num_envs: 4
+  seed: 42069
+  graph_dir: graph_data
+policy_kwargs:
+  embed_dim: 64
+  pooling_type: mean
+  network_kwargs:
+    network: MPNN
+    aggr: sum
+    num_layers: 5
+BC:
+  min_episodes: 1000
+  n_epochs: 20
+  learning_rate: 0.0005
+  batch_size: 16
+  vf_coef: 0
+  gamma: 1
+  seed: 17
+  eval_freq: 20
+weights_init:
+  gnn_init: sparse
+  encoder_init: ibarz2022

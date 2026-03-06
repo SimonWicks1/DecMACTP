@@ -1,0 +1,53 @@
+algorithm: tsp
+seed: 1
+train_data:
+  graph_generator: coordinate
+  node_samples:
+    10: 10000
+    13: 10000
+    16: 10000
+    19: 10000
+    20: 10000
+  num_envs: 4
+  seed: 47
+  graph_dir: graph_data
+val_data:
+  graph_generator: coordinate
+  node_samples:
+    20: 100
+  deterministic: true
+  num_envs: 4
+  seed: 47
+  graph_dir: graph_data
+test_data:
+  graph_generator: coordinate
+  node_samples:
+    40: 1000
+    60: 32
+    80: 32
+    100: 32
+    200: 32
+    1000: 4
+  deterministic: true
+  num_envs: 4
+  seed: 47
+  graph_dir: graph_data
+policy_kwargs:
+  embed_dim: 64
+  pooling_type: max
+  network_kwargs:
+    network: MPNN
+    aggr: max
+    num_layers: 4
+BC:
+  min_episodes: 50000
+  n_epochs: 20
+  learning_rate: 0.001
+  batch_size: 64
+  vf_coef: 0
+  gamma: 1
+  seed: 17
+  eval_freq: 100
+weights_init:
+  gnn_init: sparse
+  encoder_init: ibarz2022

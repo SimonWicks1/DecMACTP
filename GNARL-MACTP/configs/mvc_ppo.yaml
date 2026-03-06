@@ -1,0 +1,56 @@
+algorithm: mvc
+seed: 1
+train_data:
+  graph_generator: ba
+  graph_generator_kwargs:
+    M_range: [1, 10]
+  node_samples:
+    16: 1000
+  num_envs: 4
+  seed: 0
+  graph_dir: graph_data
+val_data:
+  graph_generator: ba
+  graph_generator_kwargs:
+    M_range: [1, 10]
+  node_samples:
+    16: 100
+  deterministic: true
+  num_envs: 4
+  seed: 1
+  graph_dir: graph_data
+test_data:
+  graph_generator: ba
+  graph_generator_kwargs:
+    M_range: [1, 10]
+  node_samples:
+    16: 100
+    32: 100
+    64: 100
+    128: 100
+    256: 100
+    512: 100
+    1024: 100
+  deterministic: true
+  num_envs: 1
+  seed: 2
+  graph_dir: graph_data
+policy_kwargs:
+  embed_dim: 64
+  pooling_type: mean
+  network_kwargs:
+    network: MPNN
+    aggr: sum
+    num_layers: 2
+PPO:
+  n_steps: 1024
+  n_epochs: 10
+  gamma: 1
+  learning_rate: 0.0005
+  timesteps: 10000000
+  batch_size: 64
+  seed: 8
+  eval_freq: 1024
+weights_init:
+  gnn_init: sparse
+  encoder_init: ibarz2022

@@ -1,0 +1,30 @@
+# default.yaml (MACTP task)
+
+# 允许显式指定，也允许为 null 让 env 从 node_samples/num_starts 推断
+max_nodes: null
+num_agents: null
+seed: 0
+graph_generator:
+  # 你 test code 中用的 generator
+  class_path: "gnarl.envs.generate.graph_generator.RandomSetGraphGenerator"
+
+  # 用于构造 GraphProblemDataset 列表（完全对齐你的 test code 参数）
+  data:
+    algorithm: "mactp"
+
+    # 相对路径根目录：以运行时工作目录为基准
+    # 例如你运行脚本的 cwd 是项目根目录，则 graph_data_1_1 就能被找到
+    data_root: "."
+    graph_dir: "graph_data_32_6_12"
+    split: "test"
+    graph_generator: "er"
+    graph_generator_kwargs:
+      p_range: [1.0, 2.0]
+    node_samples:
+      32: 10000
+    num_starts: 6
+    num_goals: 12
+    seed: 18
+
+  # RandomSetGraphGenerator 的额外 kwargs（一般留空即可）
+  kwargs: {}

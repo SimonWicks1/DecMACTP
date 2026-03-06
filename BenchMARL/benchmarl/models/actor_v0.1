@@ -1,0 +1,108 @@
+from __future__ import annotations
+import importlib
+from dataclasses import dataclass, MISSING
+from typing import Optional
+import torch
+import torch.nn.functional as F
+from torch import nn
+from tensordict import TensorDictBase
+from benchmarl.models.common import Model, ModelConfig
+
+_has_torch_geometric = importlib.util.find_spec("torch_geometric") is not None
+if not _has_torch_geometric: raise ImportError("GraphActorGNN requires torch_geometric")
+
+class CustomDenseGCNConv(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.lin = nn.Linear(in_channels, out_channels)
+
+    def forward(self, x, adj):
+        return torch.matmul(adj, self.lin(x))
+
+class CustomDenseGATConv(nn.Module):
+    def __init__(self, in_channels, out_channels, heads=1, concat=True):
+        super().__init__()
+        self.in_channels, self.out_channels, self.heads, self.concat = in_channels, out_channels, heads, concat
+        self.lin = nn.Linear(in_channels, heads * out_channels, bias=False)
+        self.att_src = nn.Parameter(torch.empty(1, heads, out_channels))
+        self.att_dst = nn.Parameter(torch.empty(1, heads, out_channels))
+        self.bias = nn.Parameter(torch.empty(heads * out_channels if concat else out_channels))
+        nn.init.xavier_uniform_(self.lin.weight)
+        nn.init.xavier_uniform_(self.att_src)
+        nn.init.xavier_uniform_(self.att_dst)
+        nn.init.zeros_(self.bias)
+
+    def forward(self, x, adj):
+        batch_dims, N = x.shape[:-2], x.shape[-2]
+        x_feat = self.lin(x).view(*batch_dims, N, self.heads, self.out_channels)
+        scores = F.leaky_relu((x_feat * self.att_src).sum(-1).unsqueeze(-2) + (x_feat * self.att_dst).sum(-1).unsqueeze(-3), 0.2)
+        scores = scores.masked_fill(~((adj > 0).unsqueeze(-1)), float("-inf"))
+        alpha = torch.nan_to_num(F.softmax(scores, dim=-2), 0.0)
+        out = torch.einsum('...ijh,...jhc->...ihc', alpha, x_feat)
+        return out.reshape(*batch_dims, N, self.heads * self.out_channels) + self.bias if self.concat else out.mean(-2) + self.bias
+
+class GraphActorGNN(Model):
+    def __init__(self, node_features: int, edge_features: int, num_gnn_layers: int = 2, gnn_type: str = "gat", gnn_kwargs: Optional[dict] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.node_features = node_features # config 需要传入 7
+        self.gnns = nn.ModuleList()
+        in_channels = node_features
+        for _ in range(num_gnn_layers):
+            out_channels = (gnn_kwargs or {}).get("out_channels", 64)
+            heads, concat = (gnn_kwargs or {}).get("heads", 1), (gnn_kwargs or {}).get("concat", True)
+            if gnn_type.lower() == "gat":
+                layer = CustomDenseGATConv(in_channels, out_channels, heads, concat)
+                in_channels = out_channels * heads if concat else out_channels
+            else:
+                layer = CustomDenseGCNConv(in_channels, out_channels)
+                in_channels = out_channels
+            self.gnns.append(layer.to(self.device))
+            
+        self.embedding_dim = in_channels
+        self.action_head = nn.Sequential(
+            nn.Linear(self.embedding_dim * 2, self.embedding_dim),
+            nn.ReLU(),
+            nn.Linear(self.embedding_dim, self.output_leaf_spec.shape[-1]),
+        ).to(self.device)
+
+    def _perform_checks(self):
+        super()._perform_checks()
+        if not self.output_has_agent_dim: raise ValueError("Must output per-agent logits")
+
+    def _forward(self, tensordict: TensorDictBase) -> TensorDictBase:
+        node_features = tensordict.get(("agents", "node_features")) # [E, A, N, 7]
+        edge_weights = tensordict.get(("agents", "edge_weights"))   # [E, A, N, N]
+
+        # [修复] 传入完整的视角特征，禁止提取 [..., 0, :, :]
+        x = node_features 
+        adj = edge_weights 
+
+        for gnn in self.gnns:
+            x = F.relu(gnn(x, adj)) # [E, A, N, emb]
+
+        # 从第 4 通道提取自我位置掩码 (self_pos)
+        agent_loc = node_features[..., 4].argmax(dim=-1) # [E, A]
+        
+        batch_shape, N, emb = x.shape[:-2], x.shape[-2], self.embedding_dim
+        agent_loc_expanded = agent_loc.unsqueeze(-1).unsqueeze(-1).expand(*batch_shape, 1, emb)
+        
+        # 获取当前智能体所处节点特征
+        curr_node_emb = torch.gather(x, dim=-2, index=agent_loc_expanded).squeeze(-2) # [E, A, emb]
+        # 获取全局图池化特征
+        graph_emb = x.mean(dim=-2) # [E, A, emb]
+        
+        # 双倍视野拼接读出
+        agent_emb = torch.cat([curr_node_emb, graph_emb], dim=-1) # [E, A, 2*emb]
+
+        tensordict.set(self.out_key, self.action_head(agent_emb))
+        return tensordict
+
+@dataclass
+class GraphActorGNNConfig(ModelConfig):
+    node_features: int = MISSING
+    edge_features: int = MISSING
+    gnn_type: str = "gat"
+    gnn_kwargs: Optional[dict] = None
+    num_gnn_layers: int = 2
+    @staticmethod
+    def associated_class(): return GraphActorGNN

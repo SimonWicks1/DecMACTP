@@ -1,0 +1,117 @@
+from __future__ import annotations
+import importlib
+import math
+from dataclasses import dataclass, MISSING
+from typing import Optional
+import torch
+import torch.nn.functional as F
+from torch import nn
+from tensordict import TensorDictBase
+from benchmarl.models.common import Model, ModelConfig
+
+# 注: 请在此处保留 CustomDenseGCNConv 和 CustomDenseGATConv 的类定义，代码与 Actor 完全相同。
+# 省略复制以节省字符长度。
+class CustomDenseGCNConv(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.lin = nn.Linear(in_channels, out_channels)
+    def forward(self, x, adj):
+        return torch.matmul(adj, self.lin(x))
+
+class CustomDenseGATConv(nn.Module):
+    def __init__(self, in_channels, out_channels, heads=1, concat=True):
+        super().__init__()
+        self.in_channels, self.out_channels, self.heads, self.concat = in_channels, out_channels, heads, concat
+        self.lin = nn.Linear(in_channels, heads * out_channels, bias=False)
+        self.att_src = nn.Parameter(torch.empty(1, heads, out_channels))
+        self.att_dst = nn.Parameter(torch.empty(1, heads, out_channels))
+        self.bias = nn.Parameter(torch.empty(heads * out_channels if concat else out_channels))
+        nn.init.xavier_uniform_(self.lin.weight)
+        nn.init.xavier_uniform_(self.att_src)
+        nn.init.xavier_uniform_(self.att_dst)
+        nn.init.zeros_(self.bias)
+
+    def forward(self, x, adj):
+        batch_dims, N = x.shape[:-2], x.shape[-2]
+        x_feat = self.lin(x).view(*batch_dims, N, self.heads, self.out_channels)
+        scores = F.leaky_relu((x_feat * self.att_src).sum(-1).unsqueeze(-2) + (x_feat * self.att_dst).sum(-1).unsqueeze(-3), 0.2)
+        scores = scores.masked_fill(~((adj > 0).unsqueeze(-1)), float("-inf"))
+        alpha = torch.nan_to_num(F.softmax(scores, dim=-2), 0.0)
+        out = torch.einsum('...ijh,...jhc->...ihc', alpha, x_feat)
+        return out.reshape(*batch_dims, N, self.heads * self.out_channels) + self.bias if self.concat else out.mean(-2) + self.bias
+
+class GraphCriticGNN(Model):
+    def __init__(self, node_features: int, edge_features: int, num_gnn_layers: int = 2, gnn_type: str = "gat", gnn_kwargs: Optional[dict] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.gnns = nn.ModuleList()
+        in_channels = 6 # Critic 观测拼接为 6 个通道：[nodes(2) + opt(1) + pess(1) + dest(1) + visit(1)]
+        
+        for _ in range(num_gnn_layers):
+            out_channels = (gnn_kwargs or {}).get("out_channels", 64)
+            heads, concat = (gnn_kwargs or {}).get("heads", 1), (gnn_kwargs or {}).get("concat", True)
+            if gnn_type.lower() == "gat":
+                layer = CustomDenseGATConv(in_channels, out_channels, heads, concat)
+                in_channels = out_channels * heads if concat else out_channels
+            else:
+                layer = CustomDenseGCNConv(in_channels, out_channels)
+                in_channels = out_channels
+            self.gnns.append(layer.to(self.device))
+            
+        self.value_head = nn.Sequential(
+            nn.Linear(in_channels, in_channels),
+            nn.ReLU(),
+            nn.Linear(in_channels, 1),
+        ).to(self.device)
+
+    def _forward(self, tensordict: TensorDictBase) -> TensorDictBase:
+        # [重点] 只从 state 中取，断绝与 agents 字典的任何瓜葛，保证 CTDE
+        flat_state = tensordict.get("state")
+        if flat_state is None: 
+            raise ValueError("Critic did not receive the global state tensor.")
+
+        batch_shape = flat_state.shape[:-1]
+        dim = flat_state.shape[-1]
+        import math
+        N = int((-6 + math.sqrt(36 + 8 * dim)) / 4) # 解 2N^2 + 6N = dim 反推 N
+
+        idx = 0
+        global_nodes = flat_state[..., idx : idx + 2*N].view(*batch_shape, N, 2)
+        idx += 2*N
+        global_edge_status = flat_state[..., idx : idx + N*N].view(*batch_shape, N, N)
+        idx += N*N
+        opt_cost = flat_state[..., idx : idx + N].unsqueeze(-1)
+        idx += N
+        pess_cost = flat_state[..., idx : idx + N].unsqueeze(-1)
+        idx += N
+        edge_weights = flat_state[..., idx : idx + N*N].view(*batch_shape, N, N)
+        idx += N*N
+        dest_mask = flat_state[..., idx : idx + N].unsqueeze(-1)
+        idx += N
+        visited_mask = flat_state[..., idx : idx + N].unsqueeze(-1)
+
+        # 组合 Critic 节点特征
+        x = torch.cat([global_nodes, opt_cost, pess_cost, dest_mask, visited_mask], dim=-1)
+        
+        # [防 vmap 报错] 使用 masked_fill 阻断死路
+        adj = edge_weights.clone()
+        adj = adj.masked_fill(global_edge_status == 3, 0.0)
+
+        for gnn in self.gnns:
+            x = F.relu(gnn(x, adj))
+
+        values = self.value_head(x.mean(dim=-2))
+        if self.output_has_agent_dim:
+            values = values.unsqueeze(-2).expand(*batch_shape, self.n_agents, 1)
+
+        tensordict.set(self.out_key, values)
+        return tensordict
+
+@dataclass
+class GraphCriticGNNConfig(ModelConfig):
+    node_features: int = MISSING
+    edge_features: int = MISSING
+    gnn_type: str = "gat"
+    gnn_kwargs: Optional[dict] = None
+    num_gnn_layers: int = 2
+    @staticmethod
+    def associated_class(): return GraphCriticGNN
