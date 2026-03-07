@@ -11,6 +11,17 @@ Conda: marl
 Too much errors. There is no tutorials for the repo.
 Pause, if benchamrl cannot work, back to rewrite mappo based on this repo
 
+---
+**V2:Multi-Train with ARC"**
+1. Keep the version of dynamic callback for IPPO and IGNARL 
+   1. MAPPO, IPPO and UGNARL adopt shared trunk: IPPO ang IGNARL use the same shared layer, share by critic and actor, but in update critic detach; MAPPPO use duplicate feature extractor and encode; actor and critic update their own networks. 
+2. Change the Train.py: Add parser to pass the random seed
+3. Read the default.yaml to get environment config. All random seeds are trained in the same dataset seed.
+---
+**V1: first commit** First commit: The baselines code version in the supervision discussion 06/03/2026.
+We want to make the GIPPO and GMAPPO algorithm adopt share featureExtractor and Encode. 
+This need leads to V2.
+
 ## [BenchMARL](https://github.com/facebookresearch/BenchMARL?tab=readme-ov-file#install)
 First install GNARLy
 Then install benchmarl
