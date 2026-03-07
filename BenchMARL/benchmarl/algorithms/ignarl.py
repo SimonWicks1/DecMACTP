@@ -16,30 +16,32 @@ class Ignarl(Ippo):
     IPPO by default optimizes actor and critic params in two separate optimizers.
     To prevent shared trunk params from being stepped twice, we deduplicate parameters here.
     """
+# benchmarl/algorithms/ignarl.py
+from dataclasses import dataclass, MISSING
+from typing import Dict, Iterable, Type
 
-    # 在 ignarl.py 中修改
-    def process_loss_vals(
-        self, group: str, loss_vals: TensorDictBase
-    ) -> TensorDictBase:
-        # 将 Actor Loss 和 Critic Loss 加和，由 "loss_objective" 统一负责
-        # 注意：ClipPPOLoss 内部已经根据 critic_coef 处理了权重
-        loss_vals.set(
-            "loss_objective", 
-            loss_vals["loss_objective"] + loss_vals["loss_critic"] + loss_vals["loss_entropy"]
-        )
-        # 删除单独的项，防止被 experiment.py 遍历到
-        del loss_vals["loss_entropy"]
-        del loss_vals["loss_critic"]
-        return loss_vals
+from torchrl.objectives import ClipPPOLoss
 
+from benchmarl.algorithms.ippo import Ippo, IppoConfig
+from benchmarl.algorithms.common import Algorithm
+
+
+class Ignarl(Ippo):
+    """
+    IGNARL = IPPO training + GNARL-style shared trunk.
+    To avoid shared-trunk multi-step/backward issues, we:
+      - (recommended) detach trunk in critic forward (see IgnarlCriticGNNConfig.detach_trunk=True)
+      - ensure shared parameters are not optimized twice by excluding shared params from critic optimizer.
+    """
     def _get_parameters(self, group: str, loss: ClipPPOLoss) -> Dict[str, Iterable]:
-        # 将 Actor 和 Critic 的所有参数合并给一个优化器
-        all_params = set(loss.actor_network_params.flatten_keys().values())
-        all_params.update(loss.critic_network_params.flatten_keys().values())
-        
-        return {
-            "loss_objective": list(all_params),
-        }
+        actor_params = list(loss.actor_network_params.flatten_keys().values())
+        critic_params = list(loss.critic_network_params.flatten_keys().values())
+
+        actor_ids = {id(p) for p in actor_params}
+        critic_unique = [p for p in critic_params if id(p) not in actor_ids]
+
+        return {"loss_objective": actor_params, "loss_critic": critic_unique}
+
 
 @dataclass
 class IgnarlConfig(IppoConfig):

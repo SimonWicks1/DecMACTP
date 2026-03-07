@@ -1,3 +1,4 @@
+# benchmarl/models/ignarl_critic_gnn.py
 from __future__ import annotations
 
 from dataclasses import dataclass, MISSING
@@ -15,7 +16,10 @@ class IgnarlCriticGNN(Model):
     IGNARL decentralized critic V_i(o_i):
       Shared trunk (Encode+Process) -> (hV, hG)
       Value head uses hG (and optionally h_loc) to estimate value per-agent.
-    Output key is ('agents','state_value') as required by IPPO loss keys.
+
+    IMPORTANT:
+      To avoid autograd version errors due to shared trunk being stepped by another optimizer
+      in the same iteration, we detach trunk features by default (detach_trunk=True).
     """
     def __init__(
         self,
@@ -26,6 +30,7 @@ class IgnarlCriticGNN(Model):
         gnn_hidden_dim: int = 64,
         pooling_type: str = "mean",
         use_loc: bool = True,
+        detach_trunk: bool = True,   # ✅ new
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -44,6 +49,8 @@ class IgnarlCriticGNN(Model):
         )
 
         self.use_loc = bool(use_loc)
+        self.detach_trunk = bool(detach_trunk)
+
         head_in = gnn_hidden_dim * (2 if self.use_loc else 1)
         self.value_head = nn.Sequential(
             nn.Linear(head_in, gnn_hidden_dim),
@@ -73,17 +80,25 @@ class IgnarlCriticGNN(Model):
 
         self_pos = (node_features[:, :, 4] > 0.5).float()  # [B,N]
 
-        hV, hG = self.trunk(node_features, edge_status, edge_weights, phase)
+        # ✅ shared Encode+Process, but optionally detach to avoid version conflicts
+        if self.detach_trunk:
+            with torch.no_grad():
+                hV, hG = self.trunk(node_features, edge_status, edge_weights, phase)
+            # no_grad already detaches; keep explicit for safety
+            hV = hV.detach()
+            hG = hG.detach()
+        else:
+            hV, hG = self.trunk(node_features, edge_status, edge_weights, phase)
 
         if self.use_loc:
             h_loc = torch.einsum("bn,bnd->bd", self_pos, hV)  # [B,D]
             h_in = torch.cat([hG, h_loc], dim=-1)             # [B,2D]
         else:
-            h_in = hG                                         # [B,D]
+            h_in = hG
 
         v = self.value_head(h_in)                              # [B,1]
         v = v.reshape(*batch_shape, A, 1)
-        tensordict.set(self.out_key, v)                        # should be ('agents','state_value')
+        tensordict.set(self.out_key, v)                        # ('agents','state_value')
         return tensordict
 
 
@@ -96,6 +111,7 @@ class IgnarlCriticGNNConfig(ModelConfig):
     gnn_hidden_dim: int = 64
     pooling_type: str = "mean"
     use_loc: bool = True
+    detach_trunk: bool = True   # ✅ new
 
     @staticmethod
     def associated_class():

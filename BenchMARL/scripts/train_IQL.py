@@ -7,9 +7,19 @@ from benchmarl.environments.mactp.common import MactpTask
 # 你需要把 GraphQNetConfig 放到 benchmarl.models 可导入的位置
 # 例如：benchmarl/models/graph_qnet.py 并在 benchmarl/models/__init__.py 导出
 from benchmarl.models import GraphQNetConfig
-
+import argparse
 
 def main():
+    # 增加命令行参数解析
+    parser = argparse.ArgumentParser(description="Run MARL training.")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
+    args = parser.parse_args()
+
+    # 将外部传入的 seed 赋值给变量
+    seed = args.seed
+    
+    # 打印日志以便追踪
+    print(f"========== Running Experiment with SEED: {seed} ==========")
     # ------------------------------------------------------------
     # 1) Experiment config
     # ------------------------------------------------------------
@@ -39,7 +49,6 @@ def main():
     experiment_config.checkpoint_interval = 10_000
 
     experiment_config.max_n_frames = 500_000
-    seed = 42
 
 
     # ------------------------------------------------------------

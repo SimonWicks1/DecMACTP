@@ -10,6 +10,8 @@ from benchmarl.experiment.callback import Callback
 import torch
 import numpy as np
 
+import argparse
+
 class IgnarlSchedulerCallback(Callback):
     def __init__(self, 
                  lr_end=1e-5, 
@@ -71,6 +73,16 @@ class IgnarlSchedulerCallback(Callback):
 
 
 def main():
+    # 增加命令行参数解析
+    parser = argparse.ArgumentParser(description="Run MARL training.")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
+    args = parser.parse_args()
+
+    # 将外部传入的 seed 赋值给变量
+    seed = args.seed
+    
+    # 打印日志以便追踪
+    print(f"========== Running Experiment with SEED: {seed} ==========")
     # ------------------------------------------------------------
     # 1) Experiment config
     # ------------------------------------------------------------
@@ -99,9 +111,6 @@ def main():
     # 修正：你原来写了 5_00_000（可运行但不建议），这里显式写 500_000
     experiment_config.max_n_frames = 500_000
     
-
-    seed = 42
-
     # ------------------------------------------------------------
     # 2) Task (MACTP)
     # ------------------------------------------------------------
@@ -152,7 +161,7 @@ def main():
         gnn_hidden_dim=64,
         pooling_type="mean",
         use_loc=True,
-        # detach_trunk=True,   # ✅
+        detach_trunk=True,   # ✅
         # detach_trunk=False, 
     )
     # ------------------------------------------------------------
@@ -172,7 +181,7 @@ def main():
         critic_model_config=critic_model_config,
         seed=seed,
         config=experiment_config,
-        callbacks=[ignarl_callback],
+        # callbacks=[ignarl_callback],
     )
 
     experiment.run()

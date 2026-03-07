@@ -58,7 +58,6 @@ class MultiTravelerCTPTorchRLEnv(EnvBase):
         E, A, N = self.num_envs, self.num_agents, self.max_nodes
         self.graph_data: List[Optional[object]] = [None] * E
         self.current_locations = torch.zeros((E, A), dtype=torch.int64, device=self.device)
-        # [防震荡] 记忆上一时间步的位置
         self.previous_locations = torch.zeros((E, A), dtype=torch.int64, device=self.device)
         self.destination_mask = torch.zeros((E, N), dtype=torch.int32, device=self.device)
         self.goals_visited_mask = torch.zeros((E, N), dtype=torch.int32, device=self.device)
@@ -158,7 +157,7 @@ class MultiTravelerCTPTorchRLEnv(EnvBase):
         from gnarl.envs.generate.data import GraphProblemDataset
         
         root = (Path(data_cfg.get("data_root", ".")) / data_cfg["graph_dir"]).resolve()
-        ds_seed = data_cfg.get("seed", None) if seed is None else seed
+        ds_seed = data_cfg.get("seed", None) if data_cfg.get("seed", None) is not None else seed
 
         datasets = []
         for n_key, num_samples in data_cfg["node_samples"].items():
