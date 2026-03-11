@@ -156,19 +156,50 @@ class MultiTravelerCTPTorchRLEnv(EnvBase):
         data_cfg = _maybe_complete_config(gen_cfg.get("data", {}))
         from gnarl.envs.generate.data import GraphProblemDataset
         
+        # Import FileLock for safe concurrent execution on cluster nodes
+        try:
+            from filelock import FileLock
+        except ImportError:
+            raise ImportError("The 'filelock' package is required for safe SLURM array execution. "
+                              "Please install it via 'pip install filelock'.")
+        
         root = (Path(data_cfg.get("data_root", ".")) / data_cfg["graph_dir"]).resolve()
+        
+        # Ensure the root directory exists before attempting to place a lock file inside it
+        root.mkdir(parents=True, exist_ok=True)
+        
         ds_seed = data_cfg.get("seed", None) if data_cfg.get("seed", None) is not None else seed
 
         datasets = []
-        for n_key, num_samples in data_cfg["node_samples"].items():
-            datasets.append(GraphProblemDataset(
-                root=str(root), split=data_cfg.get("split", "train"), algorithm=data_cfg["algorithm"],
-                num_nodes=int(n_key), num_samples=int(num_samples), seed=ds_seed,
-                graph_generator=data_cfg["graph_generator"], graph_generator_kwargs=data_cfg.get("graph_generator_kwargs", None),
-                num_starts=data_cfg.get("num_starts", 1), num_goals=data_cfg.get("num_goals", 1),
-            ))
+        
+        # Define a lock file path. Naming it after the algorithm prevents unnecessary 
+        # locking if different jobs are generating entirely different datasets simultaneously.
+        algo_name = data_cfg.get("algorithm", "default")
+        lock_file_path = root / f"dataset_{algo_name}_generation.lock"
+        
+        # Establish the critical section.
+        # timeout=-1 forces all secondary SLURM tasks to wait indefinitely until the lock is released.
+        with FileLock(lock_file_path, timeout=-1):
+            for n_key, num_samples in data_cfg["node_samples"].items():
+                # Process 1 will enter here, find no dataset, generate it, and save it.
+                # Processes 2..N will wait at the 'with' statement. Once Process 1 finishes 
+                # and releases the lock, Processes 2..N will enter sequentially, detect the 
+                # existing dataset on disk, safely load it into memory, and continue.
+                datasets.append(GraphProblemDataset(
+                    root=str(root), 
+                    split=data_cfg.get("split", "train"), 
+                    algorithm=data_cfg["algorithm"],
+                    num_nodes=int(n_key), 
+                    num_samples=int(num_samples), 
+                    seed=ds_seed,
+                    graph_generator=data_cfg["graph_generator"], 
+                    graph_generator_kwargs=data_cfg.get("graph_generator_kwargs", None),
+                    num_starts=data_cfg.get("num_starts", 1), 
+                    num_goals=data_cfg.get("num_goals", 1),
+                ))
+                
         return GenCls, datasets, dict(gen_cfg.get("kwargs", {}))
-    
+
     def _infer_sizes_from_generator_cfg(self, cfg: Optional[Dict[str, Any]]) -> Tuple[int, int]:
         if not cfg: return 30, 1
         data_cfg = cfg.get("data", {})

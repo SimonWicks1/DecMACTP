@@ -83,7 +83,7 @@ def calculate_oracle_tsp(G, start_node, goal_nodes, fallback_penalty=5.0):
 # ==========================================================
 def run_evaluation(checkpoint_path: str, num_episodes: int = 20, use_actual_oracle: bool = True):
     checkpoint_ptr = Path(checkpoint_path)
-    eval_dir = checkpoint_ptr.parent.parent / "new_test_evaluate_results_graph_data_64_16_16"
+    eval_dir = checkpoint_ptr.parent.parent / "new_test_evaluate_results_graph_data_256_16_16"
     eval_dir.mkdir(parents=True, exist_ok=True)
     
     device = torch.device("cpu")
@@ -269,12 +269,18 @@ def run_evaluation(checkpoint_path: str, num_episodes: int = 20, use_actual_orac
 
 if __name__ == "__main__":
     # 请替换为您实际的 checkpoint 路径
-    # IQL
-    IQL_CHECKPOINT = "/home/pemb7543/DeC_MACTP/BenchMARL/MACTP_test/iql_default_graphqnet__26_02_26-02_30_35_2d3ae245/checkpoints/checkpoint_500000.pt"
-    # VDN
-    VDN_CHECKPOINT = "/home/pemb7543/DeC_MACTP/BenchMARL/MACTP_test/vdn_default_graphqnet__26_02_25-22_49_07_437d4bff/checkpoints/checkpoint_500000.pt"
+    # IGNARL
+    IGANRL_CHECKPOINT = "/home/pemb7543/DeC_MACTP/Train/ignarl_train_ignarlactorgnn__26_03_07-15_48_05_b2070763/checkpoints/checkpoint_500000.pt"
+    # IPPO
+    IPPO_CHECKPOINT = "/home/pemb7543/DeC_MACTP/Train/ippo_train_graphactorgnn__26_03_06-19_57_15_c28e0107/checkpoints/checkpoint_500000.pt"
     # MAPPO
-    MAPPO_CHECKPOINT = "/home/pemb7543/DeC_MACTP/BenchMARL/MACTP_test/mappo_default_graphactorgnn__26_02_25-21_28_43_24478972/checkpoints/checkpoint_500000.pt"
+    MAPPO_CHECKPOINT = "/home/pemb7543/DeC_MACTP/Train/mappo_train_graphactorgnn__26_03_06-20_22_00_3920cbbe/checkpoints/checkpoint_500000.pt"
+    # IQL
+    IQL_CHECKPOINT = "/home/pemb7543/DeC_MACTP/Train/iql_train_graphqnet__26_03_06-20_46_33_6e77aa5f/checkpoints/checkpoint_500000.pt"
+    # VDN
+    VDN_CHECKPOINT = "/home/pemb7543/DeC_MACTP/Train/vdn_train_graphqnet__26_03_06-22_20_37_172c509d/checkpoints/checkpoint_500000.pt"
+    run_evaluation(IGANRL_CHECKPOINT, num_episodes=100, use_actual_oracle=False)
+    # run_evaluation(IPPO_CHECKPOINT, num_episodes=100, use_actual_oracle=False)
+    # run_evaluation(MAPPO_CHECKPOINT, num_episodes=100, use_actual_oracle=False)
     # run_evaluation(IQL_CHECKPOINT, num_episodes=100)
     # run_evaluation(VDN_CHECKPOINT, num_episodes=100)
-    run_evaluation(MAPPO_CHECKPOINT, num_episodes=100, use_actual_oracle=False)

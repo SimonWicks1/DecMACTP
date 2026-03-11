@@ -5,13 +5,10 @@ Note:
 `cd GNARL -> pip install . -> cd root path ->pip install -e BenchMARL`
 If you use `pip install .` in Benchmarl, it would make all your code in the conda lib, so you can not change the code to run. (Like Gnarl, you have to first pip install to make the change synchronize to the conda lib)
 </b>
-## [MAPPO Onpolicy](https://github.com/marlbenchmark/on-policy)
-python: Try 3.10
-Conda: marl
-Too much errors. There is no tutorials for the repo.
-Pause, if benchamrl cannot work, back to rewrite mappo based on this repo
-
 ---
+**V2.1:Arc-Train with distributed computing safeguards"**
+When I directly train the policy with multiple array on the servers, it shows a file I/O operation error. This is because when the environment is initialized, it generate the datasets. In this case, all array tries to read and write the same dataset, then leads to the error.
+
 **V2:Multi-Train with ARC"**
 1. Keep the version of dynamic callback for IPPO and IGNARL 
    1. MAPPO, IPPO and UGNARL adopt shared trunk: IPPO ang IGNARL use the same shared layer, share by critic and actor, but in update critic detach; MAPPPO use duplicate feature extractor and encode; actor and critic update their own networks. 
@@ -21,6 +18,12 @@ Pause, if benchamrl cannot work, back to rewrite mappo based on this repo
 **V1: first commit** First commit: The baselines code version in the supervision discussion 06/03/2026.
 We want to make the GIPPO and GMAPPO algorithm adopt share featureExtractor and Encode. 
 This need leads to V2.
+
+## [MAPPO Onpolicy](https://github.com/marlbenchmark/on-policy)
+python: Try 3.10
+Conda: marl
+Too much errors. There is no tutorials for the repo.
+Pause, if benchamrl cannot work, back to rewrite mappo based on this repo
 
 ## [BenchMARL](https://github.com/facebookresearch/BenchMARL?tab=readme-ov-file#install)
 First install GNARLy
