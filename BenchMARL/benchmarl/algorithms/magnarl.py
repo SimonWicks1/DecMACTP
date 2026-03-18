@@ -1,20 +1,21 @@
 from dataclasses import dataclass, MISSING
-from typing import Dict, Iterable, Tuple, Type
+from typing import Dict, Iterable, Type
 
 from torchrl.objectives import ClipPPOLoss
 
-from benchmarl.algorithms.ippo import Ippo, IppoConfig
 from benchmarl.algorithms.common import Algorithm
-from tensordict import TensorDictBase
+from benchmarl.algorithms.mappo import Mappo, MappoConfig
 
 
-class Ignarl(Ippo):
+class Magnarl(Mappo):
     """
-    IGNARL = IPPO training + GNARL-style shared trunk.
-    To avoid shared-trunk multi-step/backward issues, we:
-      - (recommended) detach trunk in critic forward (see IgnarlCriticGNNConfig.detach_trunk=True)
-      - ensure shared parameters are not optimized twice by excluding shared params from critic optimizer.
+    MAGNARL = MAPPO-style CTDE training + communication-aware GNARL trunk.
+
+    Actor and critic may share (parts of) the same local encode/process trunk.
+    As in IGNARL, we deduplicate critic parameters that are already optimized by
+    the actor optimizer to avoid stepping shared parameters twice.
     """
+
     def _get_parameters(self, group: str, loss: ClipPPOLoss) -> Dict[str, Iterable]:
         actor_params = list(loss.actor_network_params.flatten_keys().values())
         critic_params = list(loss.critic_network_params.flatten_keys().values())
@@ -22,11 +23,14 @@ class Ignarl(Ippo):
         actor_ids = {id(p) for p in actor_params}
         critic_unique = [p for p in critic_params if id(p) not in actor_ids]
 
-        return {"loss_objective": actor_params, "loss_critic": critic_unique}
+        return {
+            "loss_objective": actor_params,
+            "loss_critic": critic_unique,
+        }
 
 
 @dataclass
-class IgnarlConfig(IppoConfig):
+class MagnarlConfig(MappoConfig):
     share_param_critic: bool = MISSING
     clip_epsilon: float = MISSING
     entropy_coef: float = MISSING
@@ -39,4 +43,4 @@ class IgnarlConfig(IppoConfig):
 
     @staticmethod
     def associated_class() -> Type[Algorithm]:
-        return Ignarl
+        return Magnarl

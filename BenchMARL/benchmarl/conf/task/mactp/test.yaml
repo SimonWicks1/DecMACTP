@@ -15,15 +15,15 @@ graph_generator:
     # 相对路径根目录：以运行时工作目录为基准
     # 例如你运行脚本的 cwd 是项目根目录，则 graph_data_1_1 就能被找到
     data_root: "."
-    graph_dir: "graph_data_256_16_16"
+    graph_dir: "graph_data_128_4_8"
     split: "test"
     graph_generator: "er"
     graph_generator_kwargs:
       p_range: [1.0, 2.0]
     node_samples:
-      256: 10000
-    num_starts: 16
-    num_goals: 16
+      128: 10000
+    num_starts: 4
+    num_goals: 8
     seed: 18
 
   # RandomSetGraphGenerator 的额外 kwargs（一般留空即可）

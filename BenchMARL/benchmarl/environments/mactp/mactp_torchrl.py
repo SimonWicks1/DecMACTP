@@ -8,6 +8,7 @@ from tensordict import TensorDict
 from torch_geometric.utils import to_dense_adj
 from torchrl.data import Composite, Categorical, Unbounded, Bounded
 from torchrl.envs import EnvBase
+from benchmarl.utils import compute_joint_behavior_metrics
 
 STATUS_UNCERTAIN = 0
 STATUS_NORMAL = 1
@@ -104,7 +105,17 @@ class MultiTravelerCTPTorchRLEnv(EnvBase):
                 shape=(A,),
             ),
             # "state": Unbounded(shape=(state_dim,), dtype=torch.float32, device=self.device),
-            "penalty": Unbounded(shape=(1,), dtype=torch.float32, device=self.device)
+            "penalty": Unbounded(shape=(1,), dtype=torch.float32, device=self.device),
+            "info": Composite(
+                {
+                    "conflict_rate":            Unbounded(shape=(1,), dtype=torch.float32, device=self.device),
+                    "idle_ratio":               Unbounded(shape=(1,), dtype=torch.float32, device=self.device),
+                    "mean_agent_dispersion":    Unbounded(shape=(1,), dtype=torch.float32, device=self.device),
+                    "pairwise_action_overlap":  Unbounded(shape=(1,), dtype=torch.float32, device=self.device),
+                    "goal_redundancy_rate":     Unbounded(shape=(1,), dtype=torch.float32, device=self.device),
+                },
+                shape=(),
+            )
         })
 
         # ---------- reward ----------
@@ -353,21 +364,79 @@ class MultiTravelerCTPTorchRLEnv(EnvBase):
         #     self.goals_visited_mask.float().view(E, -1)             # visited [E, N]
         # ], dim=-1)
 
+        # return TensorDict({
+        #     "agents": agents_td,
+        #     # "state": global_state_flat,
+        #     "penalty": self.current_phase.float().view(E, 1)
+        # }, batch_size=[E])
+        # Always include info keys so reset and step outputs have identical keys
+        info_td = TensorDict(
+            {
+                "conflict_rate":           torch.zeros(E, 1, device=self.device),
+                "idle_ratio":              torch.zeros(E, 1, device=self.device),
+                "mean_agent_dispersion":   torch.zeros(E, 1, device=self.device),
+                "pairwise_action_overlap": torch.zeros(E, 1, device=self.device),
+                "goal_redundancy_rate":    torch.zeros(E, 1, device=self.device),
+            },
+            batch_size=[E],
+        )
+
         return TensorDict({
             "agents": agents_td,
-            # "state": global_state_flat,
-            "penalty": self.current_phase.float().view(E, 1)
+            "penalty": self.current_phase.float().view(E, 1),
+            "info": info_td,
         }, batch_size=[E])
+
+    # def _step(self, tensordict: TensorDict) -> TensorDict:
+    #     actions = tensordict.get(("agents", "action"))
+    #     if actions.dim() == 1: actions = actions.view(self.num_envs, self.num_agents)
+
+    #     step_costs = self._step_logic(actions)
+    #     self.current_phase += 1
+
+    #     done = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
+    #     is_success = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
+    #     for e in range(self.num_envs):
+    #         is_success[e] = torch.equal(self.destination_mask[e], self.goals_visited_mask[e])
+    #         all_stopped = bool(self.agent_terminated[e].all().item())
+    #         timeout = bool((self.current_phase[e] >= self.num_phases).item())
+    #         done[e] = is_success[e] or all_stopped or timeout
+
+    #     rewards = (-step_costs.mean(dim=1, keepdim=True)).unsqueeze(-1).expand(-1, step_costs.size(1), -1).clone()
+
+    #     penalty = torch.zeros((self.num_envs,), dtype=torch.float32, device=self.device)
+    #     for e in range(self.num_envs):
+    #         if done[e] and (not is_success[e]):
+    #             unvisited_goals = torch.nonzero((self.destination_mask[e] == 1) & (self.goals_visited_mask[e] == 0)).squeeze(1)
+    #             if unvisited_goals.numel() > 0:
+    #                 agent_penalty = []
+    #                 for i in range(self.num_agents):
+    #                     dists = self.gt_distances[e, self.current_locations[e, i], unvisited_goals]
+    #                     agent_penalty.append(dists[dists != float("inf")].sum().item() if dists[dists != float("inf")].numel() > 0 else 0.0)
+    #                 if agent_penalty: penalty[e] = sum(agent_penalty) / len(agent_penalty)
+
+    #     rewards -= penalty.view(-1, 1, 1)
+
+    #     out_td = self._make_tensordict()
+    #     out_td.set(("agents", "reward"), rewards)
+    #     done_tensor = done.view(self.num_envs, 1)
+    #     out_td.set("done", done_tensor)
+    #     out_td.set("terminated", done_tensor)
+    #     out_td.set("penalty", penalty.view(self.num_envs, 1))
+
+    #     return out_td
 
     def _step(self, tensordict: TensorDict) -> TensorDict:
         actions = tensordict.get(("agents", "action"))
-        if actions.dim() == 1: actions = actions.view(self.num_envs, self.num_agents)
+        if actions.dim() == 1:
+            actions = actions.view(self.num_envs, self.num_agents)
 
         step_costs = self._step_logic(actions)
         self.current_phase += 1
 
         done = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
         is_success = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
+
         for e in range(self.num_envs):
             is_success[e] = torch.equal(self.destination_mask[e], self.goals_visited_mask[e])
             all_stopped = bool(self.agent_terminated[e].all().item())
@@ -379,22 +448,45 @@ class MultiTravelerCTPTorchRLEnv(EnvBase):
         penalty = torch.zeros((self.num_envs,), dtype=torch.float32, device=self.device)
         for e in range(self.num_envs):
             if done[e] and (not is_success[e]):
-                unvisited_goals = torch.nonzero((self.destination_mask[e] == 1) & (self.goals_visited_mask[e] == 0)).squeeze(1)
+                unvisited_goals = torch.nonzero(
+                    (self.destination_mask[e] == 1) & (self.goals_visited_mask[e] == 0)
+                ).squeeze(1)
                 if unvisited_goals.numel() > 0:
                     agent_penalty = []
                     for i in range(self.num_agents):
                         dists = self.gt_distances[e, self.current_locations[e, i], unvisited_goals]
-                        agent_penalty.append(dists[dists != float("inf")].sum().item() if dists[dists != float("inf")].numel() > 0 else 0.0)
-                    if agent_penalty: penalty[e] = sum(agent_penalty) / len(agent_penalty)
+                        finite_dists = dists[dists != float("inf")]
+                        agent_penalty.append(finite_dists.sum().item() if finite_dists.numel() > 0 else 0.0)
+                    if agent_penalty:
+                        penalty[e] = sum(agent_penalty) / len(agent_penalty)
 
         rewards -= penalty.view(-1, 1, 1)
 
+        # 先构造输出 td
         out_td = self._make_tensordict()
+
         out_td.set(("agents", "reward"), rewards)
+
         done_tensor = done.view(self.num_envs, 1)
         out_td.set("done", done_tensor)
         out_td.set("terminated", done_tensor)
         out_td.set("penalty", penalty.view(self.num_envs, 1))
+
+        # Now overwrite with real computed values
+        metrics = compute_joint_behavior_metrics(
+            actions=actions,
+            positions=self.current_locations,
+            goals_visited_mask=self.goals_visited_mask,
+        )
+        for k, v in metrics.items():
+            if not torch.is_tensor(v):
+                v = torch.tensor(v, device=self.device, dtype=torch.float32)
+            v = v.to(torch.float32)
+            if v.dim() == 0:
+                v = v.expand(self.num_envs).reshape(self.num_envs, 1)
+            elif v.dim() == 1:
+                v = v.reshape(self.num_envs, 1)
+            out_td.set(("info", k), v)
 
         return out_td
 

@@ -22,8 +22,10 @@ from .graph_actor_gnn import GraphActorGNN, GraphActorGNNConfig
 from .graphQnet import GraphQNet, GraphQNetConfig
 from .indepent_critic_gnn import IndependentGraphCriticGNN, IndependentGraphCriticGNNConfig
 from .ignarl_actor_gnn import IgnarlActorGNN, IgnarlActorGNNConfig
-from .ignarl_shared_trunk import SharedEncodeProcessTrunk, get_or_create_shared_trunk
+# from .ignarl_shared_trunk import SharedEncodeProcessTrunk, get_or_create_shared_trunk
 from .ignarl_critic_gnn import IgnarlCriticGNN, IgnarlCriticGNNConfig
+from .magnarl_actor_gnn import MagnarlActorGNN, MagnarlActorGNNConfig
+from .magnarl_critic_gnn import MagnarlCriticGNN, MagnarlCriticGNNConfig    
 
 classes = [
     "Mlp",
@@ -41,11 +43,16 @@ classes = [
     "GraphCriticGNNConfig",
     "GraphActorGNNConfig",
     "IndependentGraphCriticGNNConfig",
+    "IgnarlActorGNN",
     "IgnarlActorGNNConfig",
-    "SharedEncodeProcessTrunk",
-    "get_or_create_shared_trunk",
+    # "SharedEncodeProcessTrunk",
+    # "get_or_create_shared_trunk",
     "IgnarlCriticGNN",
     "IgnarlCriticGNNConfig",
+    "MagnarlActorGNN",
+    "MagnarlActorGNNConfig",
+    "MagnarlCriticGNN",
+    "MagnarlCriticGNNConfig",
 ]
 
 model_config_registry = {
@@ -60,4 +67,6 @@ model_config_registry = {
     "independent_critic_gnn": IndependentGraphCriticGNNConfig,
     "ignarl_actor_gnn": IgnarlActorGNNConfig,
     "ignarl_critic_gnn": IgnarlCriticGNNConfig,
+    "magnarl_actor_gnn": MagnarlActorGNNConfig,
+    "magnarl_critic_gnn": MagnarlCriticGNNConfig,
 }

@@ -83,7 +83,7 @@ def calculate_oracle_tsp(G, start_node, goal_nodes, fallback_penalty=5.0):
 # ==========================================================
 def run_evaluation(checkpoint_path: str, num_episodes: int = 20, use_actual_oracle: bool = True):
     checkpoint_ptr = Path(checkpoint_path)
-    eval_dir = checkpoint_ptr.parent.parent / "new_test_evaluate_results_graph_data_256_16_16"
+    eval_dir = checkpoint_ptr.parent.parent / "new_test_evaluate_results_graph_data_128_4_8"
     eval_dir.mkdir(parents=True, exist_ok=True)
     
     device = torch.device("cpu")
@@ -269,6 +269,9 @@ def run_evaluation(checkpoint_path: str, num_episodes: int = 20, use_actual_orac
 
 if __name__ == "__main__":
     # 请替换为您实际的 checkpoint 路径
+    # MAGNARL
+    # MAGNARL_CHECKPOINT = "/home/pemb7543/DeC_MACTP/Train/magnarl_train_magnarlactorgnn__26_03_17-16_53_58_24f5d801/checkpoints/checkpoint_500000.pt"
+    MAGNARL_CHECKPOINT = "/home/pemb7543/DeC_MACTP/Train/magnarl_train_magnarlactorgnn__26_03_17-19_30_39_a4d2792f/checkpoints/checkpoint_500000.pt"
     # IGNARL
     IGANRL_CHECKPOINT = "/home/pemb7543/DeC_MACTP/Train/ignarl_train_ignarlactorgnn__26_03_07-15_48_05_b2070763/checkpoints/checkpoint_500000.pt"
     # IPPO
@@ -279,7 +282,8 @@ if __name__ == "__main__":
     IQL_CHECKPOINT = "/home/pemb7543/DeC_MACTP/Train/iql_train_graphqnet__26_03_06-20_46_33_6e77aa5f/checkpoints/checkpoint_500000.pt"
     # VDN
     VDN_CHECKPOINT = "/home/pemb7543/DeC_MACTP/Train/vdn_train_graphqnet__26_03_06-22_20_37_172c509d/checkpoints/checkpoint_500000.pt"
-    run_evaluation(IGANRL_CHECKPOINT, num_episodes=100, use_actual_oracle=False)
+    run_evaluation(MAGNARL_CHECKPOINT, num_episodes=100, use_actual_oracle=False)
+    # run_evaluation(IGANRL_CHECKPOINT, num_episodes=100, use_actual_oracle=False)
     # run_evaluation(IPPO_CHECKPOINT, num_episodes=100, use_actual_oracle=False)
     # run_evaluation(MAPPO_CHECKPOINT, num_episodes=100, use_actual_oracle=False)
     # run_evaluation(IQL_CHECKPOINT, num_episodes=100)

@@ -1,13 +1,13 @@
 #! /bin/bash
 #SBATCH --job-name=marl_sweep
-#SBATCH --partition=long
+#SBATCH --partition=medium
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
 #SBATCH --time=24:00:00
-#SBATCH --array=0-49          # 5 algorithms * 10 seeds = 50 concurrent tasks
+#SBATCH --array=0-59          # 6 algorithms * 10 seeds = 50 concurrent tasks
 #SBATCH --output=/data/engs-goals/pemb7543/DecMACTP/DecMACTP/logs/slurm_%A_%a.out
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=pemb7543@ox.ac.uk
@@ -17,7 +17,10 @@
 # ---------------------------------------------------------
 module load Anaconda3
 module load Boost
-source activate /data/engs-goals/pemb7543/DecMACTP
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate /data/engs-goals/pemb7543/DecMACTP
+PY="${CONDA_PREFIX}/bin/python"
+export PATH="${CONDA_PREFIX}/bin:${PATH}"
 
 SCRIPTS_DIR="/data/engs-goals/pemb7543/DecMACTP/DecMACTP/BenchMARL/scripts"
 LOG_DIR="/data/engs-goals/pemb7543/DecMACTP/DecMACTP/logs"
@@ -28,7 +31,7 @@ mkdir -p "$LOG_DIR"
 # ---------------------------------------------------------
 # A hardcoded array guarantees that train_IPPO.py and train_mappo.py 
 # are evaluated on the exact same graph initializations.
-SEEDS=(14024 24772 18898 24030 2522 15230 23626 28663 25479 14661)
+SEEDS=(14024 24772 18898 24030 2522 15230 23626 2866 25479 14661)
 NUM_SEEDS=${#SEEDS[@]}
 
 ALGOS=(
@@ -37,6 +40,7 @@ ALGOS=(
   "train_mappo.py"
   "train_IQL.py"
   "train_VDN.py"
+  "train_MAGNARL.py"
 )
 NUM_ALGOS=${#ALGOS[@]}
 
@@ -72,6 +76,9 @@ echo "Array TaskID: $SLURM_ARRAY_TASK_ID"
 echo "Algorithm:    $ALGO_NAME"
 echo "Seed:         $SEED"
 echo "Log:          $LOG_FILE"
+
+# Print the Python executable path
+echo "Python Path:  $(which python)"
 
 # Execute the training script
 python "${SCRIPTS_DIR}/${SCRIPT}" --seed "${SEED}" 2>&1 | tee "${LOG_FILE}"

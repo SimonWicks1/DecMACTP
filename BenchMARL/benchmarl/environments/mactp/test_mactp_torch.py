@@ -49,7 +49,7 @@ def main():
     # 1) 构造 TaskClass，并给它一个 config
     # 这里模拟 BenchMARL：TaskClass.config 来自 default.yaml 的读取结果
     # 你需要把 graph_generator dict 填成你实际 default.yaml 的结构
-    task = MactpTask.TEST.get_task()
+    task = MactpTask.TRAIN.get_task()
 
     # 2) 通过 TaskClass.get_env_fun 构造环境
     env_fn = task.get_env_fun(

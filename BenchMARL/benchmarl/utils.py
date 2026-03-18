@@ -129,3 +129,83 @@ def _add_rnn_transforms(
         return out_env
 
     return model_fun
+
+def compute_joint_behavior_metrics(
+    actions: torch.Tensor,
+    positions: torch.Tensor,
+    action_mask: torch.Tensor = None,
+    uncertain_frontier_map: torch.Tensor = None,
+    goals_visited_mask: torch.Tensor = None,
+):
+    """
+    Args:
+        actions: [B, A] long
+        positions: [B, A] long
+        action_mask: optional [B, A, N]
+        uncertain_frontier_map: optional [B, A, N] or [B, N]
+        goals_visited_mask: optional [B, N]
+
+    Returns:
+        dict[str, Tensor] with scalar batch metrics
+    """
+    B, A = actions.shape
+    device = actions.device
+
+    # 1) pairwise same-action conflict rate
+    a_i = actions.unsqueeze(2)  # [B, A, 1]
+    a_j = actions.unsqueeze(1)  # [B, 1, A]
+    same_action = (a_i == a_j)
+    eye = torch.eye(A, device=device, dtype=torch.bool).unsqueeze(0)
+    same_action = same_action & (~eye)
+    # conflict_rate = same_action.float().mean()
+    same_action = same_action & (~eye)              # [B, A, A]
+    conflict_rate = same_action.float().mean(dim=(-1, -2))   # [B]
+
+    # 2) idle ratio
+    idle_ratio = (actions == positions).float().mean()
+
+    # 3) mean pairwise dispersion in discrete node index space
+    # 这里先用 index 差作为轻量 proxy；后续你可以替换成 graph shortest-path distance
+    pos_i = positions.unsqueeze(2).float()
+    pos_j = positions.unsqueeze(1).float()
+    dispersion = (pos_i - pos_j).abs()
+    dispersion = dispersion.masked_fill(eye, 0.0)
+    mean_agent_dispersion = dispersion.sum() / ((~eye).float().sum() * B + 1e-8)
+
+    # 4) action overlap mass (proxy)
+    action_overlap = same_action.any(dim=-1).float().mean()
+
+    out = {
+        "conflict_rate": conflict_rate,
+        "idle_ratio": idle_ratio,
+        "mean_agent_dispersion": mean_agent_dispersion,
+        "pairwise_action_overlap": action_overlap,
+    }
+
+    # 5) optional frontier redundancy
+    if uncertain_frontier_map is not None:
+        if uncertain_frontier_map.dim() == 2:
+            uncertain_frontier_map = uncertain_frontier_map.unsqueeze(1).expand(B, A, -1)
+        # chosen_frontier = torch.gather(
+        #     uncertain_frontier_map.float(), dim=-1, index=actions.unsqueeze(-1)
+        # ).squeeze(-1)  # [B, A]
+        safe_actions = actions.clamp(0, uncertain_frontier_map.shape[-1] - 1)
+        chosen_frontier = torch.gather(
+            uncertain_frontier_map.float(), dim=-1, index=safe_actions.unsqueeze(-1)
+        ).squeeze(-1)
+        frontier_redundancy_rate = (
+            (chosen_frontier.sum(dim=-1) > 1).float().mean()
+        )
+        out["frontier_redundancy_rate"] = frontier_redundancy_rate
+
+    # 6) optional goal redundancy
+    if goals_visited_mask is not None:
+        unvisited = (1.0 - goals_visited_mask.float())  # [B, N]
+        safe_actions = actions.clamp(0, unvisited.shape[-1] - 1)
+        chosen_unvisited = torch.gather(
+            unvisited, dim=-1, index=safe_actions
+        )  # [B, A]
+        goal_redundancy_rate = ((chosen_unvisited.sum(dim=-1) > 1).float().mean())
+        out["goal_redundancy_rate"] = goal_redundancy_rate
+
+    return out

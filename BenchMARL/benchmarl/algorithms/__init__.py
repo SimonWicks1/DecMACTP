@@ -16,6 +16,7 @@ from .masac import Masac, MasacConfig
 from .qmix import Qmix, QmixConfig
 from .vdn import Vdn, VdnConfig
 from .ignarl import Ignarl, IgnarlConfig
+from .magnarl import Magnarl, MagnarlConfig
 
 classes = [
     "Iddpg",
@@ -38,6 +39,8 @@ classes = [
     "VdnConfig",
     "Ignarl",
     "IgnarlConfig",
+    "Magnarl",
+    "MagnarlConfig",
 ]
 
 # A registry mapping "algoname" to its config dataclass
@@ -53,4 +56,5 @@ algorithm_config_registry = {
     "vdn": VdnConfig,
     "iql": IqlConfig,
     "ignarl": IgnarlConfig,
+    "magnarl": MagnarlConfig,
 }

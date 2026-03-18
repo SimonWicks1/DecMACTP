@@ -9,6 +9,13 @@ If you use `pip install .` in Benchmarl, it would make all your code in the cond
 **V2.1:Arc-Train with distributed computing safeguards"**
 When I directly train the policy with multiple array on the servers, it shows a file I/O operation error. This is because when the environment is initialized, it generate the datasets. In this case, all array tries to read and write the same dataset, then leads to the error.
 
+For Parco:
+source /home/pemb7543/DeC_MACTP/parco/.venv/bin/activate
+
+---
+**V3:MAGNARL**
+In this version, we added the code of MAGNARL algorithm. To record the metrics of dynamic communication graph, we changed a little code in the environment, to record the metrics that evaluates the performance of the communication layer.
+
 **V2:Multi-Train with ARC"**
 1. Keep the version of dynamic callback for IPPO and IGNARL 
    1. MAPPO, IPPO and UGNARL adopt shared trunk: IPPO ang IGNARL use the same shared layer, share by critic and actor, but in update critic detach; MAPPPO use duplicate feature extractor and encode; actor and critic update their own networks. 
