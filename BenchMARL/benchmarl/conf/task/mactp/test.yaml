@@ -21,7 +21,7 @@ graph_generator:
     graph_generator_kwargs:
       p_range: [1.0, 2.0]
     node_samples:
-      128: 10000
+      128: 500
     num_starts: 4
     num_goals: 8
     seed: 18

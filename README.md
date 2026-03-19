@@ -13,6 +13,10 @@ For Parco:
 source /home/pemb7543/DeC_MACTP/parco/.venv/bin/activate
 
 ---
+**V3.1:MAGNARL --test**
+Add some file and code to test the policy on server.
+Separate the IPPO callback from the train code. Add it in benchmarl/experiments
+
 **V3:MAGNARL**
 In this version, we added the code of MAGNARL algorithm. To record the metrics of dynamic communication graph, we changed a little code in the environment, to record the metrics that evaluates the performance of the communication layer.
 

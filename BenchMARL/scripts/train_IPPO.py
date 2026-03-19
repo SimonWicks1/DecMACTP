@@ -8,71 +8,9 @@ from benchmarl.environments.mactp.common import MactpTask
 from benchmarl.models import GraphActorGNNConfig, IndependentGraphCriticGNNConfig
 
 from benchmarl.experiment.callback import Callback
+from benchmarl.experiment.ippo_scheduler_callback import IppoSchedulerCallback
 import numpy as np
 import argparse
-
-class IppoSchedulerCallback(Callback):
-    """
-    专门为共享主干 (Shared Trunk) 设计的调度器。
-    通过动态调整 Critic 损失系数和学习率，防止价值网络的巨大梯度冲刷掉策略网络的特征。
-    """
-    def __init__(self, 
-                 lr_end=1e-5, 
-                 critic_coef_start=0.1, 
-                 critic_coef_end=0.5, 
-                 anneal_frames=None):
-        super().__init__()
-        self.lr_end = lr_end
-        self.critic_coef_start = critic_coef_start
-        self.critic_coef_end = critic_coef_end
-        self.anneal_frames = anneal_frames
-
-    def on_setup(self):
-        exp = self.experiment
-        if self.anneal_frames is None:
-            # 使用配置中的最大帧数进行退火计算
-            self.anneal_frames = exp.config.get_max_n_frames(exp.on_policy) // 2
-        self.lr_init = exp.config.lr
-
-    def on_batch_collected(self, batch):
-        exp = self.experiment
-        current_frame = exp.total_frames
-        progress = min(1.0, current_frame / self.anneal_frames)
-
-        # 1. 动态更新 critic_coef (缓解共享主干的梯度冲突)
-        new_critic_coef_val = self.critic_coef_start + progress * (self.critic_coef_end - self.critic_coef_start)
-        exp.algorithm.critic_coef = new_critic_coef_val
-        
-        # 将 float 转换为 Tensor 并移动到训练设备上，符合 TorchRL/BenchMARL 底层要求
-        new_critic_coef_tensor = torch.as_tensor(
-            new_critic_coef_val, 
-            device=exp.config.train_device, 
-            dtype=torch.float32
-        )
-
-        for group in exp.group_map.keys():
-            if group in exp.losses:
-                exp.losses[group].critic_coeff = new_critic_coef_tensor
-
-        # 2. 线性学习率衰减 (Linear LR Annealing)，帮助共享网络在后期稳定收敛
-        new_lr = self.lr_init - progress * (self.lr_init - self.lr_end)
-        for group in exp.optimizers.keys():
-            for loss_name in exp.optimizers[group].keys():
-                optimizer = exp.optimizers[group][loss_name]
-                for param_group in optimizer.param_groups:
-                    param_group["lr"] = new_lr
-
-    def on_train_end(self, training_td, group):
-        exp = self.experiment
-        # 记录关键调度参数，方便在 Tensorboard/Wandb 中对齐分析
-        exp.logger.log(
-            {
-                "schedulers/critic_coef": exp.algorithm.critic_coef,
-                "schedulers/lr": exp.optimizers[group]["loss_objective"].param_groups[0]["lr"]
-            },
-            step=exp.n_iters_performed
-        )
-
 
 def main():
     # 增加命令行参数解析
